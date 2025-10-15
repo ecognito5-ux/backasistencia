@@ -5,14 +5,15 @@ const TABLE = 'asistencias_control';
 // Listar asistencias del trabajador autenticado (o por asignación)
 const listAsistencias = async (req, res) => {
   try {
-    const { asignacionId, trabajadorId, creadorId } = req.query;
+    const { asignacionId, trabajadorId, creadorId, tipo } = req.query;
     const params = [];
     let where = 'WHERE 1=1';
     if (asignacionId) { where += ' AND a.id_asignacion = ?'; params.push(asignacionId); }
     if (trabajadorId) { where += ' AND a.id_personal_trabajador = ?'; params.push(trabajadorId); }
     if (creadorId) { where += ' AND ac.creado_por = ?'; params.push(creadorId); }
+    if (tipo) { where += ' AND a.tipo = ?'; params.push(tipo); }
     const rows = await executeQuery(
-      `SELECT a.id, a.id_asignacion, a.id_personal_trabajador, a.fecha_hora, a.lat, a.lng, a.estado, a.comentario,
+      `SELECT a.id, a.id_asignacion, a.id_personal_trabajador, a.fecha_hora, a.lat, a.lng, a.tipo, a.estado, a.comentario,
               ac.dias, ac.hora_entrada, ac.hora_salida,
               pt.nombre_completo AS trabajador_nombre,
               ug.nombre AS ubicacion_nombre, ug.descripcion AS ubicacion_descripcion
@@ -34,7 +35,7 @@ const listAsistencias = async (req, res) => {
 // Marcar asistencia
 const marcarAsistencia = async (req, res) => {
   try {
-    const { id_asignacion, lat, lng, estado, comentario } = req.body;
+    const { id_asignacion, lat, lng, tipo, estado, comentario } = req.body;
     const userId = req.user?.id;
     if (!id_asignacion || !userId) {
       return res.status(400).json({ success: false, message: 'id_asignacion y token requeridos' });
@@ -45,9 +46,9 @@ const marcarAsistencia = async (req, res) => {
     if (asig[0].id_personal_trabajador !== userId) return res.status(403).json({ success: false, message: 'No autorizado para esta asignación' });
 
     const result = await executeQuery(
-      `INSERT INTO ${TABLE} (id_asignacion, id_personal_trabajador, lat, lng, estado, comentario)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id_asignacion, userId, lat ?? null, lng ?? null, estado || 'marcado', comentario || null]
+      `INSERT INTO ${TABLE} (id_asignacion, id_personal_trabajador, lat, lng, tipo, estado, comentario)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id_asignacion, userId, lat ?? null, lng ?? null, (tipo === 'salida' ? 'salida' : 'entrada'), estado || 'marcado', comentario || null]
     );
 
     return res.status(201).json({ success: true, message: 'Asistencia registrada', data: { id: result.insertId } });

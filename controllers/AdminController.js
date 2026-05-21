@@ -137,11 +137,33 @@ const getById = async (req, res) => {
 const create = async (req, res) => {
   try {
     const { username, password, nombre_completo, correo } = req.body;
+    if (!username?.trim() || !password?.trim() || !nombre_completo?.trim()) {
+      return res.status(400).json({ message: 'Usuario, contraseña y nombre completo son requeridos' });
+    }
+    let existe;
+    if (correo?.trim()) {
+      existe = await executeQuery(
+        `SELECT id FROM ${TABLE} WHERE username = ? OR correo = ? LIMIT 1`,
+        [username.trim(), correo.trim()]
+      );
+    } else {
+      existe = await executeQuery(
+        `SELECT id FROM ${TABLE} WHERE username = ? LIMIT 1`,
+        [username.trim()]
+      );
+    }
+    if (existe.length) {
+      return res.status(409).json({ message: 'Ya existe un super admin con ese usuario o correo' });
+    }
     const result = await executeQuery(
       `INSERT INTO ${TABLE} (username, password, nombre_completo, correo) VALUES (?, ?, ?, ?)`,
-      [username, password, nombre_completo, correo || null]
+      [username.trim(), password.trim(), nombre_completo.trim(), correo?.trim() || null]
     );
-    return res.status(201).json({ id: result.insertId });
+    const [nuevo] = await executeQuery(
+      `SELECT id, username, nombre_completo, correo FROM ${TABLE} WHERE id = ?`,
+      [result.insertId]
+    );
+    return res.status(201).json({ success: true, message: 'Super admin creado', data: nuevo });
   } catch (error) {
     return res.status(500).json({ message: 'Error creando admin', error: error.message });
   }
@@ -151,18 +173,37 @@ const update = async (req, res) => {
   try {
     const { id } = req.params;
     const { username, password, nombre_completo, correo } = req.body;
+    if (!username?.trim() || !nombre_completo?.trim()) {
+      return res.status(400).json({ message: 'Usuario y nombre completo son requeridos' });
+    }
+    let dup;
+    if (correo?.trim()) {
+      dup = await executeQuery(
+        `SELECT id FROM ${TABLE} WHERE (username = ? OR correo = ?) AND id != ? LIMIT 1`,
+        [username.trim(), correo.trim(), id]
+      );
+    } else {
+      dup = await executeQuery(
+        `SELECT id FROM ${TABLE} WHERE username = ? AND id != ? LIMIT 1`,
+        [username.trim(), id]
+      );
+    }
+    if (dup.length) {
+      return res.status(409).json({ message: 'Usuario o correo ya en uso por otro super admin' });
+    }
     const updates = ['username = ?', 'nombre_completo = ?', 'correo = ?'];
-    const params = [username, nombre_completo, correo || null];
+    const params = [username.trim(), nombre_completo.trim(), correo?.trim() || null];
     if (password && password.trim()) {
       updates.push('password = ?');
       params.push(password.trim());
     }
     params.push(id);
-    await executeQuery(
-      `UPDATE ${TABLE} SET ${updates.join(', ')} WHERE id = ?`,
-      params
+    await executeQuery(`UPDATE ${TABLE} SET ${updates.join(', ')} WHERE id = ?`, params);
+    const [actualizado] = await executeQuery(
+      `SELECT id, username, nombre_completo, correo FROM ${TABLE} WHERE id = ?`,
+      [id]
     );
-    return res.json({ message: 'Actualizado' });
+    return res.json({ success: true, message: 'Super admin actualizado', data: actualizado });
   } catch (error) {
     return res.status(500).json({ message: 'Error actualizando admin', error: error.message });
   }
@@ -171,8 +212,16 @@ const update = async (req, res) => {
 const remove = async (req, res) => {
   try {
     const { id } = req.params;
-    await executeQuery(`DELETE FROM ${TABLE} WHERE id = ?`, [id]);
-    return res.json({ message: 'Eliminado' });
+    const targetId = parseInt(id, 10);
+    if (req.user?.id === targetId) {
+      return res.status(400).json({ message: 'No puedes eliminar tu propia cuenta' });
+    }
+    const total = await executeQuery(`SELECT COUNT(*) AS n FROM ${TABLE}`);
+    if (total[0]?.n <= 1) {
+      return res.status(400).json({ message: 'Debe existir al menos un super admin en el sistema' });
+    }
+    await executeQuery(`DELETE FROM ${TABLE} WHERE id = ?`, [targetId]);
+    return res.json({ success: true, message: 'Super admin eliminado' });
   } catch (error) {
     return res.status(500).json({ message: 'Error eliminando admin', error: error.message });
   }

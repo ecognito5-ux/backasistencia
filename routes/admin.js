@@ -11,11 +11,11 @@ router.put('/me', authenticateToken, requireAdmin, AdminController.updateMe);
 // Tarea crítica: purgar datos (solo super admin)
 router.post('/purge', authenticateToken, requireAdmin, AdminController.purge);
 
-// CRUD super_admin (protegido)
-router.get('/', authenticateToken, AdminController.list);
-router.get('/:id', authenticateToken, AdminController.getById);
-router.post('/', authenticateToken, AdminController.create);
-router.put('/:id', authenticateToken, AdminController.update);
-router.delete('/:id', authenticateToken, AdminController.remove);
+// CRUD super_admin (solo super admin autenticado)
+router.get('/admins', authenticateToken, requireAdmin, AdminController.list);
+router.get('/admins/:id', authenticateToken, requireAdmin, AdminController.getById);
+router.post('/admins', authenticateToken, requireAdmin, AdminController.create);
+router.put('/admins/:id', authenticateToken, requireAdmin, AdminController.update);
+router.delete('/admins/:id', authenticateToken, requireAdmin, AdminController.remove);
 
 module.exports = router;

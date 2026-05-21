@@ -3,14 +3,13 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// Configuración de la base de datos (solo por .env)
-// Requiere definir en el entorno: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
+// DB_* en .env local; en Railway también acepta MYSQLHOST, MYSQLUSER, etc.
 const dbConfig = {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: parseInt(process.env.DB_PORT, 10) || 3306,
+    host: process.env.DB_HOST || process.env.MYSQLHOST,
+    user: process.env.DB_USER || process.env.MYSQLUSER,
+    password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD,
+    database: process.env.DB_NAME || process.env.MYSQLDATABASE,
+    port: parseInt(process.env.DB_PORT || process.env.MYSQLPORT, 10) || 3306,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
@@ -20,11 +19,9 @@ const dbConfig = {
 };
 
 // Validación simple para ayudar en despliegues
-['DB_HOST','DB_USER','DB_PASSWORD','DB_NAME'].forEach((k) => {
-    if (!process.env[k]) {
-        console.warn(`⚠️  Variable ${k} no está definida en el entorno (.env).`);
-    }
-});
+if (!dbConfig.host || !dbConfig.user || !dbConfig.password || !dbConfig.database) {
+    console.warn('⚠️  Faltan variables de base de datos (DB_* o MYSQL* en Railway).');
+}
 
 // Crear pool de conexiones
 const pool = mysql.createPool(dbConfig);

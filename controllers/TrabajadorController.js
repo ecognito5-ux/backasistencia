@@ -1,5 +1,6 @@
 const { executeQuery } = require('../config/database');
 const jwt = require('jsonwebtoken');
+const { sendWelcomeEmailTrabajador } = require('../services/emailService');
 
 const TABLE = 'personal_trabajador';
 const ROLES_TABLE = 'personal_trabajador_roles';
@@ -13,6 +14,7 @@ const getAllTrabajadores = async (req, res) => {
         pt.id,
         pt.username,
         pt.nombre_completo,
+        pt.correo,
         pt.id_personal_area,
         pt.id_area_laboral,
         pa.nombre_completo as personal_area_nombre,
@@ -51,6 +53,7 @@ const getTrabajadoresByArea = async (req, res) => {
         pt.id,
         pt.username,
         pt.nombre_completo,
+        pt.correo,
         pt.id_personal_area,
         pt.id_area_laboral,
         pa.nombre_completo as personal_area_nombre,
@@ -90,6 +93,7 @@ const getTrabajadoresByPersonalArea = async (req, res) => {
         pt.id,
         pt.username,
         pt.nombre_completo,
+        pt.correo,
         pt.id_personal_area,
         pt.id_area_laboral,
         pa.nombre_completo as personal_area_nombre,
@@ -122,7 +126,7 @@ const getTrabajadoresByPersonalArea = async (req, res) => {
 // Crear nuevo trabajador
 const createTrabajador = async (req, res) => {
   try {
-    const { username, password, nombre_completo, id_personal_area, id_area_laboral, roles_ids } = req.body;
+    const { username, password, nombre_completo, correo, id_personal_area, id_area_laboral, roles_ids } = req.body;
     
     if (!username || username.trim() === '') {
       return res.status(400).json({ 
@@ -200,8 +204,8 @@ const createTrabajador = async (req, res) => {
     
     // Crear el trabajador
     const result = await executeQuery(
-      `INSERT INTO ${TABLE} (username, password, nombre_completo, id_personal_area, id_area_laboral) VALUES (?, ?, ?, ?, ?)`,
-      [username.trim(), password.trim(), nombre_completo.trim(), id_personal_area, id_area_laboral]
+      `INSERT INTO ${TABLE} (username, password, nombre_completo, correo, id_personal_area, id_area_laboral) VALUES (?, ?, ?, ?, ?, ?)`,
+      [username.trim(), password.trim(), nombre_completo.trim(), correo ? correo.trim() : null, id_personal_area, id_area_laboral]
     );
     
     const trabajadorId = result.insertId;
@@ -224,6 +228,24 @@ const createTrabajador = async (req, res) => {
       }
     }
     
+    // Enviar correo de bienvenida si se proporcionó un correo (DESACTIVADO POR AHORA)
+    // if (correo && correo.trim()) {
+    //   try {
+    //     // Obtener descripción del área para el correo
+    //     const areaInfo = await executeQuery(
+    //       `SELECT descripcion FROM area_laboral WHERE id = ?`,
+    //       [id_area_laboral]
+    //     );
+    //     const areaDescripcion = areaInfo.length > 0 ? areaInfo[0].descripcion : null;
+    //     
+    //     await sendWelcomeEmailTrabajador(correo.trim(), nombre_completo.trim(), username.trim(), areaDescripcion);
+    //     console.log('📧 Correo de bienvenida enviado a:', correo.trim());
+    //   } catch (emailError) {
+    //     console.error('Error enviando correo de bienvenida:', emailError);
+    //     // No fallar la creación si el correo no se envía
+    //   }
+    // }
+    
     return res.status(201).json({ 
       success: true, 
       message: 'Trabajador creado exitosamente',
@@ -231,6 +253,7 @@ const createTrabajador = async (req, res) => {
         id: trabajadorId,
         username: username.trim(),
         nombre_completo: nombre_completo.trim(),
+        correo: correo ? correo.trim() : null,
         id_personal_area: parseInt(id_personal_area),
         id_area_laboral: parseInt(id_area_laboral)
       }
@@ -249,7 +272,7 @@ const createTrabajador = async (req, res) => {
 const updateTrabajador = async (req, res) => {
   try {
     const { id } = req.params;
-    const { username, password, nombre_completo, id_personal_area, id_area_laboral, roles_ids } = req.body;
+    const { username, password, nombre_completo, correo, id_personal_area, id_area_laboral, roles_ids } = req.body;
     
     if (!username || username.trim() === '') {
       return res.status(400).json({ 
@@ -332,8 +355,8 @@ const updateTrabajador = async (req, res) => {
     }
     
     // Preparar actualización
-    let updateQuery = `UPDATE ${TABLE} SET username = ?, nombre_completo = ?, id_personal_area = ?, id_area_laboral = ?`;
-    let updateParams = [username.trim(), nombre_completo.trim(), id_personal_area, id_area_laboral];
+    let updateQuery = `UPDATE ${TABLE} SET username = ?, nombre_completo = ?, correo = ?, id_personal_area = ?, id_area_laboral = ?`;
+    let updateParams = [username.trim(), nombre_completo.trim(), correo ? correo.trim() : null, id_personal_area, id_area_laboral];
     
     // Solo actualizar password si se proporciona
     if (password && password.trim() !== '') {
@@ -381,6 +404,7 @@ const updateTrabajador = async (req, res) => {
         id: parseInt(id),
         username: username.trim(),
         nombre_completo: nombre_completo.trim(),
+        correo: correo ? correo.trim() : null,
         id_personal_area: parseInt(id_personal_area),
         id_area_laboral: parseInt(id_area_laboral)
       }
@@ -449,6 +473,7 @@ const loginTrabajador = async (req, res) => {
         pt.username,
         pt.password,
         pt.nombre_completo,
+        pt.correo,
         pt.id_personal_area,
         pt.id_area_laboral,
         pa.nombre_completo as encargado_nombre,
@@ -508,6 +533,62 @@ const loginTrabajador = async (req, res) => {
       message: 'Error en el proceso de login', 
       error: error.message 
     });
+  }
+};
+
+// Obtener mi perfil (trabajador autenticado)
+const getMe = async (req, res) => {
+  try {
+    const { id } = req.user;
+    const result = await executeQuery(`
+      SELECT pt.id, pt.username, pt.nombre_completo, pt.correo, pt.id_personal_area, pt.id_area_laboral,
+             pa.nombre_completo as encargado_nombre, al.descripcion as area_descripcion,
+             GROUP_CONCAT(r.descripcion SEPARATOR ', ') as roles_asignados
+      FROM ${TABLE} pt
+      LEFT JOIN personal_area pa ON pt.id_personal_area = pa.id
+      LEFT JOIN area_laboral al ON pt.id_area_laboral = al.id
+      LEFT JOIN ${ROLES_TABLE} ptr ON pt.id = ptr.id_personal_trabajador
+      LEFT JOIN roles r ON ptr.id_rol = r.id
+      WHERE pt.id = ?
+      GROUP BY pt.id
+    `, [id]);
+    if (!result.length) return res.status(404).json({ success: false, message: 'Trabajador no encontrado' });
+    return res.json({ success: true, data: result[0] });
+  } catch (error) {
+    console.error('Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Actualizar mi perfil (correo y/o contraseña)
+const updateMe = async (req, res) => {
+  try {
+    const { id } = req.user;
+    const { correo, currentPassword, newPassword } = req.body;
+    const [user] = await executeQuery(`SELECT id, password FROM ${TABLE} WHERE id = ?`, [id]);
+    if (!user) return res.status(404).json({ success: false, message: 'Trabajador no encontrado' });
+    if (newPassword && newPassword.trim()) {
+      if (!currentPassword || user.password !== currentPassword.trim()) {
+        return res.status(401).json({ success: false, message: 'Contraseña actual incorrecta' });
+      }
+    }
+    const updates = ['correo = ?'];
+    const params = [correo ? correo.trim() : null];
+    if (newPassword && newPassword.trim()) { updates.push('password = ?'); params.push(newPassword.trim()); }
+    params.push(id);
+    await executeQuery(`UPDATE ${TABLE} SET ${updates.join(', ')} WHERE id = ?`, params);
+    const [updated] = await executeQuery(`
+      SELECT pt.id, pt.username, pt.nombre_completo, pt.correo, pt.id_personal_area, pt.id_area_laboral,
+             pa.nombre_completo as encargado_nombre, al.descripcion as area_descripcion
+      FROM ${TABLE} pt
+      LEFT JOIN personal_area pa ON pt.id_personal_area = pa.id
+      LEFT JOIN area_laboral al ON pt.id_area_laboral = al.id
+      WHERE pt.id = ?
+    `, [id]);
+    return res.json({ success: true, message: 'Perfil actualizado', data: updated });
+  } catch (error) {
+    console.error('Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -572,5 +653,7 @@ module.exports = {
   updateTrabajador,
   deleteTrabajador,
   loginTrabajador,
+  getMe,
+  updateMe,
   changePassword
 };

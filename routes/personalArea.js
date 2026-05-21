@@ -1,10 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const PersonalAreaController = require('../controllers/PersonalAreaController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireArea } = require('../middleware/auth');
 
 // Ruta de login (SIN autenticación)
 router.post('/login', PersonalAreaController.loginPersonalArea);
+
+// Mi perfil (solo personal de área)
+router.get('/me', authenticateToken, requireArea, PersonalAreaController.getMe);
+router.put('/me', authenticateToken, requireArea, PersonalAreaController.updateMe);
 
 // Rutas para personal de área (protegidas con autenticación)
 router.get('/', authenticateToken, PersonalAreaController.getAllPersonalArea);

@@ -17,4 +17,26 @@ const authenticateToken = (req, res, next) => {
   }
 };
 
-module.exports = { authenticateToken };
+// Requiere que el token tenga rol 'admin' (super admin del sistema)
+const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Acceso denegado: se requiere rol de super admin' });
+  }
+  next();
+};
+
+const requireArea = (req, res, next) => {
+  if (!req.user || req.user.role !== 'area') {
+    return res.status(403).json({ message: 'Acceso denegado: se requiere rol de área' });
+  }
+  next();
+};
+
+const requireTrabajador = (req, res, next) => {
+  if (!req.user || req.user.role !== 'trabajador') {
+    return res.status(403).json({ message: 'Acceso denegado: se requiere rol de trabajador' });
+  }
+  next();
+};
+
+module.exports = { authenticateToken, requireAdmin, requireArea, requireTrabajador };

@@ -8,9 +8,11 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-// CORS: permitir cualquier origen (solo desarrollo). Para prod, fija allowlist.
-app.use(cors({ origin: true, credentials: true }));
+// Middleware CORS — en producción usar FRONTEND_URL (ej. https://tu-app.vercel.app)
+const corsOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map((s) => s.trim()).filter(Boolean)
+  : true;
+app.use(cors({ origin: corsOrigins, credentials: true }));
 // Header para Private Network Access (Chrome) y preflight OPTIONS
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Private-Network', 'true');
@@ -61,6 +63,7 @@ const rolesRoutes = require('./routes/roles');
 const ubicacionesRoutes = require('./routes/ubicaciones');
 const asignacionesRoutes = require('./routes/asignaciones');
 const asistenciasRoutes = require('./routes/asistencias');
+const authRoutes = require('./routes/auth');
 app.use('/api/admin', adminRoutes);
 app.use('/api/personal', personalRoutes);
 app.use('/api/trabajadores', trabajadoresRoutes);
@@ -70,6 +73,7 @@ app.use('/api/roles', rolesRoutes);
 app.use('/api/ubicaciones', ubicacionesRoutes);
 app.use('/api/asignaciones', asignacionesRoutes);
 app.use('/api/asistencias', asistenciasRoutes);
+app.use('/api/auth', authRoutes);
 
 // Middleware de manejo de errores
 app.use((err, req, res, next) => {
